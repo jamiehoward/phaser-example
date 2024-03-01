@@ -1,3 +1,5 @@
+![Preview](assets/preview.gif)
+
 # Phaser JS Example
 
 Just a simple example of a Phaser game.
