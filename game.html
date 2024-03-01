@@ -1,0 +1,260 @@
+<!doctype html> 
+<html lang="en"> 
+<head> 
+    <meta charset="UTF-8" />
+    <title>Making your first Phaser 3 Game - Part 1</title>
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.11.0/dist/phaser.js"></script>
+    <style type="text/css">
+        body {
+            margin: 0 auto;
+            width: 800px;
+            padding-top: 25px;
+            background-color: bisque;
+        }
+    </style>
+</head>
+<body>
+
+<script type="text/javascript">
+
+    var config = {
+        type: Phaser.AUTO,
+        width: 800,
+        height: 600,
+        physics: {
+            default: 'arcade',
+            arcade: {
+                gravity: { y: 300 },
+                debug: false
+            }
+        },
+        scene: {
+            preload: preload,
+            create: create,
+            update: update
+        }
+    };
+
+    var game = new Phaser.Game(config);
+
+    var score = 0;
+    var scoreText;
+    var direction = 'right';
+
+    function preload() 
+    {
+        this.load.image('sky', 'assets/sky.png');
+        this.load.image('ground', 'assets/platform.png');
+        // this.load.image('star', 'assets/star.png');
+        // this.load.image('bomb', 'assets/bomb.png');
+        this.load.spritesheet('dude',
+            // 'assets/dude.png',
+            // { frameWidth: 32, frameHeight: 48 }
+            'assets/megaman-zero.png',
+            { frameWidth: 48, frameHeight: 48 }
+        );
+        this.load.spritesheet('star',
+            'assets/chicken.png',
+            { frameWidth: 69, frameHeight: 69 }
+        );
+        this.load.spritesheet('bomb',
+            'assets/bomb-explosion.png',
+            { frameWidth: 22, frameHeight: 22 }
+        );
+    }
+
+    function create ()
+    {
+        // Create sky
+        this.add.image(400, 300, 'sky');
+
+        // Score
+        scoreText = this.add.text(16, 16, 'Score: 0', { fontSize: '32px', fill: '#000' });
+        
+        // Create platforms
+        platforms = this.physics.add.staticGroup();
+
+        platforms.create(400, 568, 'ground').setScale(2).refreshBody();
+
+        platforms.create(600, 400, 'ground');
+        platforms.create(50, 250, 'ground');
+        platforms.create(750, 220, 'ground');
+
+        // Create player
+        player = this.physics.add.sprite(100, 450, 'dude');
+
+        player.setBounce(0.2);
+        player.setCollideWorldBounds(false);
+        player.body.setGravityY(300);
+
+        this.physics.add.collider(player, platforms);
+
+        this.anims.create({
+            key: 'sitting',
+            frames: this.anims.generateFrameNumbers('star', { start: 64, end: 71 }),
+            frameRate: 10,
+            repeat: -1
+        });
+
+        this.anims.create({
+            key: 'left',
+            // frames: this.anims.generateFrameNumbers('dude', { start: 0, end: 3 }),
+            frames: this.anims.generateFrameNumbers('dude', { start: 30, end: 39 }),
+            frameRate: 10,
+            repeat: -1
+        });
+
+        this.anims.create({
+            key: 'resting-right',
+            frames: this.anims.generateFrameNumbers('dude', { start: 0, end: 5 }),
+            // frames: [{ key: 'dude', frame: 71 }],
+            frameRate: 10,
+            repeat: -1
+        });
+        
+        this.anims.create({
+            key: 'resting-left',
+            frames: this.anims.generateFrameNumbers('dude', { start: 10, end: 14 }),
+            // frames: [{ key: 'dude', frame: 71 }],
+            frameRate: 10,
+            repeat: -1
+        });
+
+        this.anims.create({
+            key: 'right',
+            // frames: this.anims.generateFrameNumbers('dude', { start: 5, end: 8 }),
+            frames: this.anims.generateFrameNumbers('dude', { start: 20, end: 29 }),
+            frameRate: 10,
+            repeat: -1
+        });
+        
+        this.anims.create({
+            key: 'firing',
+            frames: this.anims.generateFrameNumbers('bomb', { start: 0, end: 2 }),
+            frameRate: 5,
+        });
+
+        // Set up keyboard controls
+        cursors = this.input.keyboard.createCursorKeys();
+
+        // Create stars
+        stars = this.physics.add.group({
+            key: 'star',
+            repeat: 11,
+            setXY: { x: 12, y: 0, stepX: 70 }
+        });
+
+        stars.children.iterate(function (child) {
+
+            child.setBounceY(Phaser.Math.FloatBetween(0.4, 0.8));
+            child.setScale(0.5);
+
+        });
+
+        this.physics.add.collider(stars, platforms);
+        this.physics.add.collider(stars, player);
+
+        // Create bombs
+        bombs = this.physics.add.group();
+        this.physics.add.collider(bombs, platforms);
+        this.physics.add.collider(bombs, stars, collectStar, null, this);
+        this.physics.add.collider(player, bombs, hitBomb, null, this);
+    }
+
+    function update ()
+    {
+        stars.children.iterate(function (child) {
+            child.anims.play('sitting', true);
+        });
+
+        if (cursors.left.isDown) {
+            player.setVelocityX(-160);
+
+            player.anims.play('left', true);
+
+            direction = 'left';
+        }
+        else if (cursors.right.isDown) {
+            player.setVelocityX(160);
+
+            player.anims.play('right', true);
+
+            direction = 'right';
+        }
+        else {
+            player.setVelocityX(0);
+
+            if (direction === 'left') {
+                player.anims.play('resting-left', true);
+            } else {
+                player.anims.play('resting-right', true);
+            }
+        }
+
+        if (cursors.up.isDown && player.body.touching.down) {
+            player.setVelocityY(-500);
+        }
+        
+        // If spacebar and no other bombs exist on screen, create a bomb
+        if (cursors.space.isDown && bombs.countActive(true) === 0) {
+            // Create a bomb
+            var x = (direction === 'left') ? player.x - 50 : player.x + 50;
+            var bomb = bombs.create(x, player.y, 'bomb');
+
+            bomb.setCollideWorldBounds(true);
+
+            // Make the bomb fire whichever direction the player is facing
+            var bombVelocity = (direction === 'left') ? -200 : 200;
+            bomb.setVelocity(bombVelocity, -100);
+
+            // Play the bomb firing animation
+            bomb.anims.play('firing', true);
+
+            // Set a timer to make the bomb explode after 2 seconds
+            this.time.addEvent({
+                delay: 2000,
+                callback: function() {
+                    bomb.destroy();
+                },
+                callbackScope: this
+            });
+        }
+
+        // if player is past the edge, change their x to the other side
+        if (player.x < 0) {
+            player.x = 800;
+        } else if (player.x > 800) {
+            player.x = 0;
+        }
+    }
+
+    function collectStar(bomb, star) {
+        star.disableBody(true, true);
+        bomb.disableBody(true, true);
+
+        score += 10;
+        scoreText.setText('Score: ' + score);
+
+        if (stars.countActive(true) === 0) {
+            stars.children.iterate(function (child) {
+
+                child.enableBody(true, child.x, 0, true, true);
+
+            });
+        }
+    }
+
+    function hitBomb(player, bomb) {
+        // this.physics.pause();
+
+        // player.setTint(0xff0000);
+
+        // player.anims.play('turn');
+
+        // gameOver = true;
+    }
+
+</script>
+
+</body>
+</html>
